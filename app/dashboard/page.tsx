@@ -20,6 +20,9 @@ import {
 import { toast } from "sonner";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { CreditCardIcon } from "lucide-react";
+import { useSchematicEntitlement, useSchematicEvents } from "@schematichq/schematic-react";
+import ProgressCard from "@/components/ProgressCard";
 
 const transformText = (text: string, style: string): string => {
   switch (style) {
@@ -47,6 +50,7 @@ export default function Page() {
     const result = transformText(inputText, selectedStyle);
     setOutputText(result);
 
+    if (inputText !== "") {
         // Save to Convex
         if (user?.id) {
             createGeneration({
@@ -55,6 +59,13 @@ export default function Page() {
               generationType: selectedStyle,
             });
           }
+
+          track({ event: 'text-generation' })
+    } else {
+        toast.error("Please enter valid text")
+    }
+
+        
   };
 
   const handleCopy = () => {
@@ -62,14 +73,34 @@ export default function Page() {
     toast.success("Copied to clipboard!");
   };
 
+  const {
+    value: isFeatureEnabled,
+    featureUsage,
+    featureAllocation,
+    featureUsageExceeded,
+  } = useSchematicEntitlement("text-generations");
+  const { track } = useSchematicEvents();
+
+  const {
+    value: isNewBooleanFeatureEnabled,
+  } = useSchematicEntitlement("snakecase-formatting");
+
   return (
     <div className="min-h-screen bg-white text-black px-4 py-8">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">📝 TinyText Formatter</h1>
-          <UserButton afterSignOutUrl="/" />
+          <UserButton afterSignOutUrl="/">
+          <UserButton.MenuItems>
+            <UserButton.Link
+            label="Manage subscription"
+            labelIcon={<CreditCardIcon className="w-4 h-4" />}
+            href="/dashboard/subscription"
+            />
+          </UserButton.MenuItems>
+          </UserButton>
         </div>
-
+        <ProgressCard current={featureUsage!} max={featureAllocation} label="Text Transformations Usage" />
         <Card className="shadow-md border-gray-200">
           <CardHeader>
             <CardTitle>Format Your Text</CardTitle>
@@ -90,15 +121,16 @@ export default function Page() {
                 <SelectItem value="uppercase">UPPERCASE</SelectItem>
                 <SelectItem value="lowercase">lowercase</SelectItem>
                 <SelectItem value="titlecase">Title Case</SelectItem>
-                <SelectItem value="snakecase">snake_case</SelectItem>
+                <SelectItem value="snakecase"  disabled={!isNewBooleanFeatureEnabled}>{isNewBooleanFeatureEnabled ? "snake_case" : "snake_case not included with your current plan. Please upgrade for usage."}</SelectItem>
               </SelectContent>
             </Select>
 
             <Button
               onClick={handleConvert}
               className="w-full bg-black text-white hover:bg-gray-800"
+              disabled={!isFeatureEnabled}
             >
-              Convert
+              { featureUsageExceeded ? "Upgrade to continue" : "Convert" }
             </Button>
 
             {outputText && (
